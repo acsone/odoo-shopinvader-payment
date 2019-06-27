@@ -189,7 +189,8 @@ class AbstractPaymentService(AbstractComponent):
         the_super = super(AbstractPaymentService, self)
         if hasattr(the_super, "_execute_payment_action"):
             values = the_super._execute_payment_action(
-                provider_name, transaction, target, params)
+                provider_name, transaction, target, params
+            )
         if transaction.url:
             values.update({"redirect_to": transaction.url})
             return values
