@@ -11,5 +11,6 @@
     "category": "e-commerce",
     "depends": ["invader_payment", "payment_sips"],
     "data": ["views/payment_acquirer.xml"],
+    "external_dependencies": {"python": ["cerberus"]},
     "demo": [],
 }
