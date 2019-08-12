@@ -22,21 +22,16 @@ class InvaderPaymentService(Component):
         res["target"]["allowed"].append("current_cart")
         return res
 
-    def _invader_get_payment_success_reponse_data(
-        self, payable, target, **params
-    ):
-        res = super()._invader_get_payment_success_reponse_data(
-            payable, target, **params
+    def _invader_payment_start(self, payable, transaction, payment_mode_id):
+        res = super()._invader_payment_start(
+            payable, transaction, payment_mode_id
         )
-        if target == "current_cart":
-            res = self.component(usage="cart")._to_json(payable)
-            res.update(
-                {
-                    "store_cache": {
-                        "last_sale": res.get("data", {}),
-                        "cart": {},
-                    },
-                    "set_session": {"cart_id": 0},
-                }
-            )
+        if payable._model == "sale.order":
+            payable.write({"payment_mode_id": payment_mode_id.id})
+        return res
+
+    def _invader_payment_success(self, payable, transaction):
+        res = super()._invader_payment_success(payable, transaction)
+        if payable._model == "sale.order":
+            self.component(usage="cart")._confirm_cart(payable)
         return res

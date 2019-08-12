@@ -88,9 +88,10 @@ class PaymentServiceSips(AbstractComponent):
         **params
     ):
         """ Prepare data for SIPS payment submission """
-        payable = self.component(
-            usage="invader.payment"
-        )._invader_find_payable_from_target(target, **params)
+        invader_payment = self.component(usage="invader.payment")
+        payable = invader_payment._invader_find_payable_from_target(
+            target, **params
+        )
         payment_mode = self.env["account.payment.mode"].browse(
             int(payment_mode)
         )
@@ -102,7 +103,9 @@ class PaymentServiceSips(AbstractComponent):
         )
         transaction_data["acquirer_id"] = acquirer.id
         transaction = self.env["payment.transaction"].create(transaction_data)
-        payable._invader_payment_start(transaction, payment_mode)
+        invader_payment._invader_payment_start(
+            payable, transaction, payment_mode
+        )
         data = _sips_make_data(
             self._prepare_sips_data(
                 transaction, normal_return_url, automatic_response_url
@@ -190,9 +193,10 @@ class PaymentServiceSips(AbstractComponent):
                 data,
             )
             raise UserError(INVALID_DATA)
-        payable = self.component(
-            usage="invader.payment"
-        )._invader_find_payable_from_transaction(transaction)
+        invader_payment = self.component(usage="invader.payment")
+        payable = invader_payment._invader_find_payable_from_transaction(
+            transaction
+        )
         if transaction.state == "draft":
             # if transaction is not draft, it means it has already been
             # processed by automatic_response or normal_return
@@ -209,7 +213,7 @@ class PaymentServiceSips(AbstractComponent):
             transaction.write(tx_data)
             if success:
                 transaction._set_transaction_done()
-                payable._invader_payment_success(transaction)
+                invader_payment._invader_payment_success(payable, transaction)
             else:
                 # XXX we may need to handle pending state?
                 transaction._set_transaction_cancel()
@@ -256,13 +260,6 @@ class PaymentServiceSips(AbstractComponent):
         res = {}
         if transaction.state == "done":
             res["redirect_to"] = success_redirect
-            res.update(
-                self.component(
-                    usage="invader.payment"
-                )._invader_get_payment_success_reponse_data(
-                    payable, target, **params
-                )
-            )
         else:
             res["redirect_to"] = cancel_redirect
         return res

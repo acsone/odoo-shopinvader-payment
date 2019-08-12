@@ -23,10 +23,3 @@ class SaleOrder(models.Model):
             "sale_order_ids": [(6, 0, self.ids)],
         }
         return vals
-
-    def _invader_payment_start(self, transaction, payment_mode_id):
-        self.write({"payment_mode_id": payment_mode_id.id})
-
-    def _invader_payment_success(self, transaction):
-        res = self.action_confirm_cart()
-        return res

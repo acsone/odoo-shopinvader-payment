@@ -21,11 +21,3 @@ class InvaderPayable(models.AbstractModel):
         :return: recordset (account.payment.method)
         """
         raise NotImplementedError
-
-    def _invader_payment_start(self, transaction, payment_mode_id):
-        """ Called just after the transaction has been created. """
-        pass
-
-    def _invader_payment_success(self, transaction):
-        """ Called when the payment transaction succeeded. """
-        pass

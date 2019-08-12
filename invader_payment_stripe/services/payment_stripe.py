@@ -129,9 +129,10 @@ class PaymentServiceStripe(AbstractComponent):
         stripe_payment_method_id = params.get("stripe_payment_method_id")
         stripe_payment_intent_id = params.get("stripe_payment_intent_id")
         transaction_obj = self.env["payment.transaction"]
-        payable = self.component(
-            usage="invader.payment"
-        )._invader_find_payable_from_target(target, **params)
+        invader_payment = self.component(usage="invader.payment")
+        payable = invader_payment._invader_find_payable_from_target(
+            target, **params
+        )
         # Stripe part
         transaction = None
         try:
@@ -145,7 +146,9 @@ class PaymentServiceStripe(AbstractComponent):
                         payment_mode_id
                     )
                 )
-                payable._invader_payment_start(transaction, payment_mode_id)
+                invader_payment._invader_payment_start(
+                    payable, transaction, payment_mode_id
+                )
                 intent = self._prepare_stripe_intent(
                     transaction, stripe_payment_method_id
                 )
@@ -161,7 +164,7 @@ class PaymentServiceStripe(AbstractComponent):
             if intent.status == "succeeded":
                 # Handle post-payment fulfillment
                 transaction._set_transaction_done()
-                payable._invader_payment_success(transaction)
+                invader_payment._invader_payment_success(payable, transaction)
             else:
                 transaction.write(
                     {"state": STRIPE_TRANSACTION_STATUSES[intent.status]}
@@ -231,18 +234,7 @@ class PaymentServiceStripe(AbstractComponent):
                 }
             elif intent.status == "succeeded":
                 # The payment didn’t need any additional actions and completed!
-                res = {"success": True}
-                # enrich the response with additional data
-                # (necessary for ShopInvader's weird way to
-                # manipulate session data)
-                res.update(
-                    self.component(
-                        usage="invader.payment"
-                    )._invader_get_payment_success_reponse_data(
-                        payable, target, **params
-                    )
-                )
-                return res
+                return {"success": True}
             elif intent.status == "canceled":
                 return {"error": _("Payment canceled.")}
             else:
