@@ -4,6 +4,8 @@
 
 import json
 
+from odoo import _
+from odoo.exceptions import UserError
 from vcr_unittest import VCRMixin
 
 from .common import TestCommonPayment
@@ -16,8 +18,8 @@ stripe_secret_key = "sk_test_4eC39HqLyjWDarjtT1zdp7dc"
 class TestInvaderPayment(VCRMixin, TestCommonPayment):
     def setUp(self):
         super().setUp()
-        self.stripe_method = self.env.ref(
-            "invader_payment_stripe.payment_method_stripe"
+        self.payment_mode = self.env.ref(
+            "invader_payment_stripe.payment_mode_stripe"
         )
         acquirer = self.env.ref("payment.payment_acquirer_stripe")
         acquirer.write({"stripe_secret_key": stripe_secret_key})
@@ -39,18 +41,24 @@ class TestInvaderPayment(VCRMixin, TestCommonPayment):
         next_response["body"]["string"] = json.dumps(body).encode("utf-8")
 
     def test_confirm_payment_one_step(self):
-        result = self.service.confirm_payment(
-            "demo_partner",
-            payment_mode=self.stripe_method.id,
-            stripe_payment_method_id="pm_card_visa",
+        result = self.service.dispatch(
+            "confirm_payment",
+            params={
+                "target": "demo_partner",
+                "payment_mode_id": self.payment_mode.id,
+                "stripe_payment_method_id": "pm_card_visa",
+            },
         )
         self.assertEqual(result, {"success": True})
 
     def test_confirm_payment_two_step(self):
-        result = self.service.confirm_payment(
-            "demo_partner",
-            payment_mode=self.stripe_method.id,
-            stripe_payment_method_id="pm_card_threeDSecure2Required",
+        result = self.service.dispatch(
+            "confirm_payment",
+            params={
+                "target": "demo_partner",
+                "payment_mode_id": self.payment_mode.id,
+                "stripe_payment_method_id": "pm_card_threeDSecure2Required",
+            },
         )
         self.assertIn("requires_action", result)
         self.assertTrue(result["requires_action"])
@@ -65,9 +73,33 @@ class TestInvaderPayment(VCRMixin, TestCommonPayment):
         # on server side so the simpliest solution is to
         # hack the next response
         self._alter_next_response({"status": "succeeded"})
-        result = self.service.confirm_payment(
-            "demo_partner",
-            payment_mode=self.stripe_method.id,
-            stripe_payment_intent_id=stripe_payment_intent_id,
+        result = self.service.dispatch(
+            "confirm_payment",
+            params={
+                "target": "demo_partner",
+                "payment_mode_id": self.payment_mode.id,
+                "stripe_payment_intent_id": stripe_payment_intent_id,
+            },
         )
         self.assertEqual(result, {"success": True})
+
+    def test_wrong_provider_confirm(self):
+        self.payment_mode_check = self.env.ref(
+            "invader_payment_manual.payment_mode_check"
+        )
+        with self.assertRaises(UserError) as m:
+            self.service.dispatch(
+                "confirm_payment",
+                params={
+                    "target": "demo_partner",
+                    "payment_mode_id": self.payment_mode_check.id,
+                    "stripe_payment_method_id": "pm_card_visa",
+                },
+            )
+        self.assertEqual(
+            m.exception.name,
+            _(
+                "Payment mode acquirer mismatch should be "
+                "'stripe' instead of 'transfer'."
+            ),
+        )

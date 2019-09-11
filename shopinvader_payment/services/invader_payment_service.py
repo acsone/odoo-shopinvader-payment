@@ -4,8 +4,9 @@ from odoo.addons.component.core import Component
 
 
 class InvaderPaymentService(Component):
-
     _inherit = "invader.payment.service"
+    _name = "shopinvader.payment.service"
+    _collection = "shopinvader.backend"
 
     def _invader_find_payable_from_target(self, target, **params):
         if target == "current_cart":

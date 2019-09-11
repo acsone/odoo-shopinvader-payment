@@ -6,6 +6,7 @@ import logging
 import stripe
 from cerberus import Validator
 from odoo import _
+from odoo.addons.base_rest.components.service import to_int
 from odoo.addons.component.core import AbstractComponent
 from odoo.addons.payment_stripe.models.payment import INT_CURRENCIES
 from odoo.tools.float_utils import float_round
@@ -32,23 +33,27 @@ class PaymentServiceStripe(AbstractComponent):
     _usage = "payment_stripe"
     _description = "REST Services for Stripe payments"
 
+    @property
+    def payment_service(self):
+        return self.component(usage="invader.payment")
+
     def _validator_confirm_payment(self):
         """
         Validator of confirm_payment service
         target: see _allowed_payment_target()
-        payment_mode: The payment mode used to pay
+        payment_mode_id: The payment mode used to pay
         stripe_payment_intent_id: The previously created intent
         stripe_payment_method_id: The Stripe card created on client side
         :return: dict
         """
-        res = self.component(
-            usage="invader.payment"
-        )._invader_get_target_validator()
+        res = self.payment_service._invader_get_target_validator()
         res.update(
             {
-                # payment_mode cannot be integer here, because
-                # it can be an empty string from the form
-                "payment_mode": {"type": "string"},
+                "payment_mode_id": {
+                    "coerce": to_int,
+                    "type": "integer",
+                    "required": True,
+                },
                 "stripe_payment_intent_id": {"type": "string"},
                 "stripe_payment_method_id": {"type": "string"},
             }
@@ -120,32 +125,33 @@ class PaymentServiceStripe(AbstractComponent):
             * The stripe_payment_intent_id is passed
             * The intent state is 'succeeded'
         :param target: string (authorized value is checked by service)
-        :param payment_mode: string (The Odoo payment mode id)
+        :param payment_mode_id: string (The Odoo payment mode id)
         :param stripe_payment_method_id:
         :param stripe_payment_intent_id:
         :return:
         """
-        payment_mode = params.get("payment_mode")
+        payment_mode_id = params.get("payment_mode_id")
         stripe_payment_method_id = params.get("stripe_payment_method_id")
         stripe_payment_intent_id = params.get("stripe_payment_intent_id")
         transaction_obj = self.env["payment.transaction"]
-        payable = self.component(
-            usage="invader.payment"
-        )._invader_find_payable_from_target(target, **params)
+        payable = self.payment_service._invader_find_payable_from_target(
+            target, **params
+        )
+
         # Stripe part
         transaction = None
+        payment_mode = self.env["account.payment.mode"].browse(payment_mode_id)
+        self.payment_service._check_acquirer(payment_mode, "stripe")
+
         try:
             if stripe_payment_method_id:
                 # First step
-                payment_mode_id = self.env["account.payment.mode"].browse(
-                    int(payment_mode)
-                )
                 transaction = transaction_obj.create(
                     payable._invader_prepare_payment_transaction_data(
-                        payment_mode_id
+                        payment_mode
                     )
                 )
-                payable._invader_payment_start(transaction, payment_mode_id)
+                payable._invader_payment_start(transaction, payment_mode)
                 intent = self._prepare_stripe_intent(
                     transaction, stripe_payment_method_id
                 )
@@ -235,13 +241,14 @@ class PaymentServiceStripe(AbstractComponent):
                 # enrich the response with additional data
                 # (necessary for ShopInvader's weird way to
                 # manipulate session data)
+                # fmt: off
                 res.update(
-                    self.component(
-                        usage="invader.payment"
-                    )._invader_get_payment_success_reponse_data(
-                        payable, target, **params
-                    )
+                    self.payment_service
+                        ._invader_get_payment_success_reponse_data(
+                            payable, target, **params
+                        )
                 )
+                # fmt: on
                 return res
             elif intent.status == "canceled":
                 return {"error": _("Payment canceled.")}
