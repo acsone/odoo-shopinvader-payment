@@ -4,11 +4,11 @@
 
 import logging
 
-from openerp import _
-from openerp.addons.base_rest.components.service import to_int
-from openerp.addons.component.core import AbstractComponent
-from openerp.addons.payment_stripe.models.payment import INT_CURRENCIES
-from openerp.tools.float_utils import float_round
+from odoo import _
+from odoo.addons.base_rest.components.service import to_int
+from odoo.addons.component.core import AbstractComponent
+from odoo.addons.payment_stripe.models.payment import INT_CURRENCIES
+from odoo.tools.float_utils import float_round
 
 _logger = logging.getLogger(__name__)
 

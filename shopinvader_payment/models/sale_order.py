@@ -2,8 +2,8 @@
 # Copyright 2019 ACSONE SA/NV
 # License AGPL-3.0 or later (http://www.gnu.org/licenses/agpl).
 
-from openerp import _, models
-from openerp.exceptions import UserError
+from odoo import _, models
+from odoo.exceptions import UserError
 
 
 class SaleOrder(models.Model):

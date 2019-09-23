@@ -3,8 +3,8 @@
 # @author Sébastien BEAU <sebastien.beau@akretion.com>
 # License AGPL-3.0 or later (http://www.gnu.org/licenses/agpl).
 
-from openerp import _
-from openerp.exceptions import UserError
+from odoo import _
+from odoo.exceptions import UserError
 
 from .common import TestCommonPayment
 

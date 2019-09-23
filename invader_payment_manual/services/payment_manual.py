@@ -4,8 +4,8 @@
 
 import logging
 
-from openerp.addons.base_rest.components.service import to_int
-from openerp.addons.component.core import AbstractComponent
+from odoo.addons.base_rest.components.service import to_int
+from odoo.addons.component.core import AbstractComponent
 
 _logger = logging.getLogger(__name__)
 

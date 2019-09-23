@@ -3,9 +3,9 @@
 # @author Sébastien BEAU <sebastien.beau@akretion.com>
 # License AGPL-3.0 or later (http://www.gnu.org/licenses/agpl).
 
-from openerp import _
-from openerp.addons.shopinvader.tests.test_cart import CommonConnectedCartCase
-from openerp.exceptions import UserError
+from odoo import _
+from odoo.addons.shopinvader.tests.test_cart import CommonConnectedCartCase
+from odoo.exceptions import UserError
 
 
 class TestShopinvaderQuotationPaymentCart(CommonConnectedCartCase):

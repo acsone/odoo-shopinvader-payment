@@ -3,7 +3,7 @@
 # @author Sébastien BEAU <sebastien.beau@akretion.com>
 # License AGPL-3.0 or later (http://www.gnu.org/licenses/agpl).
 
-from openerp.addons.component.core import Component
+from odoo.addons.component.core import Component
 
 # Locomotive proxy do not implement any logic, it's 100% generic it's just
 # pass the data its receive, we need here to map the field and to inject
