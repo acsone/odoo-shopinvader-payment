@@ -14,7 +14,7 @@ _logger = logging.getLogger(__name__)
 
 
 class AbstractPaymentService(AbstractComponent):
-    _inherit = "base.shopinvader.service"
+    # Should be used on a Component who also inherit base.shopinvader.service
     _name = "shopinvader.abstract.payment.service"
 
     # Public service
