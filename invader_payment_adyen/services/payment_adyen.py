@@ -5,7 +5,7 @@
 import logging
 
 from odoo import fields
-from odoo.addons.base_rest.components.service import to_int
+from odoo.addons.base_rest.components.service import to_bool, to_int
 from odoo.addons.component.core import AbstractComponent
 from odoo.tools.float_utils import float_round
 
@@ -415,6 +415,16 @@ class PaymentServiceAdyen(AbstractComponent):
             lambda a: a.provider == "adyen"
         ).adyen_merchant_account
 
+    def _update_additional_details(self, response):
+        """
+        Hook to be able to enrich transaction with response
+        additionalData
+        :param vals:
+        :param response:
+        :return:
+        """
+        return {}
+
     def _update_transaction_with_response(self, transaction, response):
         """
         Update the transaction with Adyen response
@@ -423,6 +433,7 @@ class PaymentServiceAdyen(AbstractComponent):
         :return:
         """
         vals = {}
+        vals.update(self._update_additional_details(response))
         payment_data = response.message.get("paymentData")
         if payment_data:
             vals.update({"adyen_payment_data": payment_data})
@@ -456,3 +467,46 @@ class PaymentServiceAdyen(AbstractComponent):
         if transaction:
             message.update({"transaction_id": transaction.id})
         return message
+
+    def _validator_webhook(self):
+        schema = {
+            "live": {"coerce": to_bool, "required": True},
+            "notificationItems": {
+                "type": "list",
+                "schema": {
+                    "type": "dict",
+                    "schema": {
+                        "NotificationRequestItem": {
+                            "type": "dict",
+                            "schema": {"additionalData": {"type": "dict"}},
+                        }
+                    },
+                },
+            },
+        }
+        return Validator(schema, allow_unknown=True)
+
+    def _validator_return_webhook(self):
+        """
+        Returns nothing
+        :return:
+        """
+        schema = {}
+        return Validator(schema, allow_unknown=True)
+
+    def webhook(self, **params):
+        """
+        Implement the webhook notification.
+        See: https://docs.adyen.com/development-resources/notifications
+        :param params:
+        :return:
+        """
+        payment_acquirer_obj = self.env["payment.acquirer"]
+        for element in params.get("notificationItems"):
+            notification_item = element.get("NotificationRequestItem")
+            with self.env.cr.savepoint():
+                # Continue to handle items even if error
+                payment_acquirer_obj._handle_adyen_notification_item(
+                    notification_item
+                )
+        return {}
