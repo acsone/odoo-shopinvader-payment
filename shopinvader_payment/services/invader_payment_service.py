@@ -10,7 +10,7 @@ class InvaderPaymentService(Component):
 
     def _invader_find_payable_from_target(self, target, **params):
         if target == "current_cart":
-            return self.component(usage="cart")._get()
+            return self.component(usage="cart")._get(create_if_not_found=False)
         return super(
             InvaderPaymentService, self
         )._invader_find_payable_from_target(target, **params)

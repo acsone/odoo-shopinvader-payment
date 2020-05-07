@@ -35,12 +35,15 @@ class PaymentBankTransfer(AbstractComponent):
         payable = self.component(
             usage="invader.payment"
         )._invader_find_payable_from_target(target, **params)
-        payment_mode = self.env["account.payment.mode"].browse(
-            int(payment_mode)
-        )
-        transaction = self.env["payment.transaction"].browse()
-        payable._invader_payment_start(transaction, payment_mode)
-        payable._invader_payment_success(transaction)
+        if payable:
+        # check that there is an actual cart to prevent user error
+        # which can create two sale orders
+            payment_mode = self.env["account.payment.mode"].browse(
+                int(payment_mode)
+            )
+            transaction = self.env["payment.transaction"].browse()
+            payable._invader_payment_start(transaction, payment_mode)
+            payable._invader_payment_success(transaction)
         res = self.component(
             usage="invader.payment"
         )._invader_get_payment_success_reponse_data(payable, target, **params)
