@@ -5,6 +5,7 @@
 import logging
 
 from cerberus import Validator
+from openerp import _
 from openerp.addons.component.core import AbstractComponent
 
 _logger = logging.getLogger(__name__)
@@ -44,7 +45,9 @@ class PaymentBankTransfer(AbstractComponent):
             transaction = self.env["payment.transaction"].browse()
             payable._invader_payment_start(transaction, payment_mode)
             payable._invader_payment_success(transaction)
-        res = self.component(
-            usage="invader.payment"
-        )._invader_get_payment_success_reponse_data(payable, target, **params)
-        return res
+            res = self.component(
+                usage="invader.payment"
+            )._invader_get_payment_success_reponse_data(payable, target, **params)
+            return res
+        else:
+            return {"error": _("An Error has occured, the cart is empty")}
