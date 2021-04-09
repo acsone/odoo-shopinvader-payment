@@ -4,6 +4,7 @@
 import logging
 
 from Adyen.util import is_valid_hmac_notification
+
 from odoo import _, fields, models
 
 from ..services.exceptions import AdyenInvalidData
@@ -24,7 +25,8 @@ class PaymentAcquirer(models.Model):
 
     def _get_adyen_notification_message(self, transaction, notification_item):
         message = transaction.state_message
-        notification_message = "eventCode: {}, merchantReference: {}, pspReference: {}".format(
+        m_format = "eventCode: {}, merchantReference: {}, pspReference: {}"
+        notification_message = m_format.format(
             notification_item.get("eventCode"),
             notification_item.get("merchantReference"),
             notification_item.get("pspReference"),

@@ -39,12 +39,12 @@ class ShopinvaderAdyenCommon(object):
         }
         cls.payments_response_scheme = Adyen.client.AdyenResult(message=vals)
 
-    def _get_adyen_service(cls):
+    def _get_adyen_service(self):
         adyen = Adyen.Adyen(platform="test", live_endpoint_prefix="prefix")
         adyen.client.xapikey = "TEST"
         return adyen
 
-    def _get_notification_item(cls, transaction, success=True):
+    def _get_notification_item(self, transaction, success=True):
         item = {
             "NotificationRequestItem": {
                 "operations": ["CANCEL", "CAPTURE", "REFUND"],
@@ -74,11 +74,11 @@ class ShopinvaderAdyenCommon(object):
         ] = signature
         return item
 
-    def _get_notifications(cls, transactions, success=True):
+    def _get_notifications(self, transactions, success=True):
         notifications = {
             "live": "false",
             "notificationItems": [
-                cls._get_notification_item(transaction, success)
+                self._get_notification_item(transaction, success)
                 for transaction in transactions
             ],
         }

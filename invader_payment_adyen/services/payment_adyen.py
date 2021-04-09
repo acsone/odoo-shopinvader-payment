@@ -5,6 +5,8 @@
 import logging
 
 from odoo import fields
+from odoo.tools.float_utils import float_round
+
 from odoo.addons.base_rest.components.service import (
     skip_secure_response,
     to_bool,
@@ -12,7 +14,6 @@ from odoo.addons.base_rest.components.service import (
 )
 from odoo.addons.component.core import AbstractComponent
 from odoo.addons.shopinvader.shopinvader_response import shopinvader_agnostic
-from odoo.tools.float_utils import float_round
 
 _logger = logging.getLogger(__name__)
 

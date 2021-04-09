@@ -3,6 +3,7 @@
 # License AGPL-3.0 or later (http://www.gnu.org/licenses/agpl.html).
 import mock
 from Adyen.client import AdyenResult
+
 from odoo.addons.shopinvader.tests.test_cart import CommonConnectedCartCase
 
 from .common import ShopinvaderAdyenCommon
