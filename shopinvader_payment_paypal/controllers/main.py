@@ -14,5 +14,5 @@ class InvaderController(main.InvaderController):
     @route(["/shopinvader/payment_paypal/normal_return"], methods=["GET"])
     def normal_return(self, **params):
         return self._process_method(
-            "payment_paypal", "normal_return", None, params
+            "payment_paypal", "normal_return", None, params=params
         )
