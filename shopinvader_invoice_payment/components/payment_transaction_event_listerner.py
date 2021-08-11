@@ -13,7 +13,8 @@ class AccountMovePaymentTransactionEventListener(Component):
         if not account_invoice.shopinvader_backend_id:
             return
         # In case of the invoice is not already validated
-        account_invoice.action_post()
+        if account_invoice.state != "posted":
+            account_invoice.action_post()
         response = shopinvader_response.get()
         response.set_session("invoice_id", 0)
         response.set_store_cache("invoice", {})

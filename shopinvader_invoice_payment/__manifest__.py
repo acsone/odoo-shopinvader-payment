@@ -15,6 +15,5 @@
         "shopinvader_payment",
         "shopinvader_invoice",
         "component_event",
-        "shopinvader_payment_manual",
     ],
 }
