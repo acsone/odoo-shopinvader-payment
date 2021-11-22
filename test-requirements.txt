@@ -2,3 +2,6 @@
 # test requirements
 vcrpy-unittest
 unittest2
+
+# DONT MERGE
+odoo14-addon-shopinvader-payment @ git+https://github.com/shopinvader/odoo-shopinvader-payment@refs/pull/64/head#subdirectory=setup/shopinvader_payment
