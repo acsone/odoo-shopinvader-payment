@@ -1,8 +1,13 @@
 # Copyright 2019 ACSONE SA/NV
 # License AGPL-3.0 or later (http://www.gnu.org/licenses/agpl).
+
+import logging
+
 from odoo.addons.component.core import Component
 from odoo.addons.shopinvader import shopinvader_response
 from odoo.addons.shopinvader.utils import work_on_service_with_partner
+
+_logger = logging.getLogger(__name__)
 
 
 class SaleOrderPaymentTransactionEventListener(Component):
@@ -27,9 +32,23 @@ class SaleOrderPaymentTransactionEventListener(Component):
             # to request the cart info to be stored in its own cache
             # once the cache is reset.
 
-            invader_partner = sale_order.partner_id._get_invader_partner(
-                shopinvader_backend
-            )
+            invader_partner = sale_order.partner_id.with_context(
+                active_test=False
+            )._get_invader_partner(shopinvader_backend)
+            if not invader_partner:
+                _logger.error(
+                    f"Could not find invader_partner for sale order {sale_order.id}"
+                )
+                return
+            if len(invader_partner) > 1:
+                _logger.error(
+                    f"Several invader_partner found for sale order {sale_order.id}"
+                )
+                return
+            if not invader_partner.active:
+                _logger.warning(
+                    f"Inactive invader_partner found for sale order {sale_order.id}"
+                )
             with work_on_service_with_partner(
                 self.env, invader_partner
             ) as work:
