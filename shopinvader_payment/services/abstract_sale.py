@@ -17,5 +17,5 @@ class AbstractSaleService(AbstractComponent):
         """
         values = super()._convert_one_sale(sale)
         payment = self.work.component(usage="invader.payment")
-        values.update(payment._to_json(sale._invader_get_transactions()))
+        values.update(payment._to_json(sale._invader_get_transactions_done()))
         return values
