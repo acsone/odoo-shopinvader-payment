@@ -481,11 +481,15 @@ class PaymentServiceAdyen(AbstractComponent):
         """
         Hook to be able to enrich transaction with response
         additionalData
-        :param vals:
-        :param response:
-        :return:
+        Payment result can contains payment method brand
         """
-        return {}
+        res = {}
+        if response.message.get("paymentMethod"):
+            payment_method = response.message.get("paymentMethod")
+            brand = payment_method.get("brand")
+            if brand:
+                res.update({"adyen_payment_method": brand})
+        return res
 
     def _update_transaction_with_response(self, transaction, response):
         """
