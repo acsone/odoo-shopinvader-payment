@@ -8,3 +8,4 @@ class PaymentTransaction(models.Model):
     _inherit = "payment.transaction"
 
     adyen_payment_data = fields.Char(groups="base.group_user")
+    adyen_payment_method = fields.Char()
