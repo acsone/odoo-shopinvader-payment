@@ -111,6 +111,7 @@ class TestCommon(SavepointCase):
                 "payment_type": "inbound",
                 "bank_account_required": True,
                 "mandate_required": True,
+                "payment_acquirer_id": cls.acquirer.id,
             }
         )
         cls.journal = cls.AccountJournal.create(
