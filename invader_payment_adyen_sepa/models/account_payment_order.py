@@ -86,12 +86,14 @@ class AccountPaymentOrder(models.Model):
     def generate_payment_file(self):
         """
         Inherit to avoid file generation for SEPA payment
+        and call transaction generation.
         """
         if (
             self.payment_method_id.code == "sepa_direct_debit"
             and self.payment_type == "inbound"
             and self.payment_method_id.payment_acquirer_id.provider == "adyen"
         ):
+            self._generate_transaction_adyen()
             return False, False
         return super().generate_payment_file()
 
@@ -119,6 +121,31 @@ class AccountPaymentOrder(models.Model):
             ]
         return list_vals
 
+    def open2generated(self):
+        self.ensure_one()
+        action = super().open2generated()
+        if (
+            self.payment_method_id.code == "sepa_direct_debit"
+            and self.payment_type == "inbound"
+            and self.payment_method_id.payment_acquirer_id.provider == "adyen"
+        ):
+            self.generated2uploaded()
+            action = {
+                "type": "ir.actions.client",
+                "tag": "display_notification",
+                "params": {
+                    "type": "success",
+                    "title": _("Adyen SEPA"),
+                    "message": _("Transactions has been generated correctly."),
+                    "sticky": True,
+                    "next": {
+                        "type": "ir.actions.client",
+                        "tag": "reload",
+                    },
+                },
+            }
+        return action
+
     @api.model
     def _cron_create_transaction(self):
         """ """
@@ -135,9 +162,7 @@ class AccountPaymentOrder(models.Model):
             lambda p: p.sepa
             and p.payment_method_id.payment_acquirer_id.provider == "adyen"
         ):
-            payment_order._generate_transaction_adyen()
             payment_order.open2generated()
-            payment_order.generated2uploaded()
 
     def _generate_transaction_adyen(self):
         transaction_data = self._invader_prepare_payment_transaction_data(
