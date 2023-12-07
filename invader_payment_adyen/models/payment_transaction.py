@@ -2,7 +2,11 @@
 # License AGPL-3.0 or later (http://www.gnu.org/licenses/agpl).
 import logging
 
+from Adyen import AdyenAPIValidationError
+
 from odoo import fields, models
+
+from .payment_acquirer import ADYEN_PROVIDER
 
 _logger = logging.getLogger(__name__)
 try:
@@ -14,7 +18,6 @@ except ImportError as err:
 class PaymentTransaction(models.Model):
     _inherit = "payment.transaction"
 
-    adyen_payment_data = fields.Char(groups="base.group_user")
     adyen_payment_method = fields.Char()
 
     def _get_adyen_notification_message(self, notification_item):
@@ -140,6 +143,37 @@ class PaymentTransaction(models.Model):
         }
         return request
 
+    def _trigger_transaction_provider(self):
+        # In the best world, this function should be more abstract if call super
+        # if not the expected provider.
+        # if self.acquirer_id.provider == ADYEN_PROVIDER:
+        self.ensure_one()
+        if self.acquirer_id.provider == ADYEN_PROVIDER:
+            return self._trigger_transaction_adyen()
+        return super()._trigger_transaction_provider()
+
+    def _prepare_transaction_data(self):
+        res = super()._prepare_transaction_data()
+        if self.acquirer_id.provider == ADYEN_PROVIDER:
+            res.update(self._prepare_adyen_session())
+        return res
+
+    def _trigger_transaction_adyen(self, data):
+        adyen = self._get_service()
+        try:
+            response = adyen.checkout.payment_methods(data)
+        except AdyenAPIValidationError as adyen_exception:
+            self._update_with_error(adyen_exception)
+            return {}
+        else:
+            self._update_with_response(response)
+            return response
+
+    def _get_service(self):
+        if self.acquirer_id.provider == ADYEN_PROVIDER:
+            return self._get_adyen_service()
+        return super()._get_service()
+
     def _get_adyen_service(self):
         """
         Return an intialized library
@@ -191,6 +225,19 @@ class PaymentTransaction(models.Model):
             )
             res.update({"adyen_payment_method": payment_method})
         return res
+
+    def _update_with_response(self, response):
+        if self.acquirer_id.provider == ADYEN_PROVIDER:
+            return self._update_with_adyen_response()
+        return super()._update_with_response(response)
+
+    def _parse_transaction_response(self, response):
+        if self.acquirer_id.provider == ADYEN_PROVIDER:
+            return self._parse_transaction_response_adyen()
+        return super()._parse_transaction_response(response)
+
+    def _parse_transaction_response_adyen(self, response):
+        return response
 
     def _update_with_adyen_response(self, response):
         """
