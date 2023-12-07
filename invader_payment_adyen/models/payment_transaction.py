@@ -2,7 +2,11 @@
 # License AGPL-3.0 or later (http://www.gnu.org/licenses/agpl).
 import logging
 
+from Adyen import AdyenAPIValidationError
+
 from odoo import fields, models
+
+from .payment_acquirer import ADYEN_PROVIDER
 
 _logger = logging.getLogger(__name__)
 try:
@@ -14,25 +18,7 @@ except ImportError as err:
 class PaymentTransaction(models.Model):
     _inherit = "payment.transaction"
 
-    adyen_payment_data = fields.Char(groups="base.group_user")
     adyen_payment_method = fields.Char()
-
-    def _get_adyen_notification_message(self, notification_item):
-        message = self.state_message
-        notification_message = (
-            "eventCode: {}, merchantReference: {}, pspReference: {}".format(
-                notification_item.get("eventCode"),
-                notification_item.get("merchantReference"),
-                notification_item.get("pspReference"),
-            )
-        )
-        stamp = str(fields.Datetime.now())
-        adyen_message = "\n" + stamp + ": " + str(notification_message)
-        if message:
-            message += adyen_message
-        else:
-            message = adyen_message
-        return message
 
     def _get_platform(self):
         """
@@ -43,64 +29,6 @@ class PaymentTransaction(models.Model):
             state = self.acquirer_id.state
             return "test" if state in ("disabled", "test") else "live"
         return super()._get_platform()
-
-    def _handle_adyen_notification_item_authorized(self, notification_item):
-        success = notification_item.get("success")
-        success = True if success == "true" else False
-        if success and self.state != "done" and self.state != "authorized":
-            # Set to done if not already. Don't raise, just pass
-            # It will return a 200 code to Adyen, so the webhook will
-            # be marked as done on their side.
-            self._set_transaction_done()
-        elif not success and self.state == "draft":
-            # Set to error if draft. Don't raise, just pass
-            # It will return a 200 code to Adyen, so the webhook will
-            # be marked as done on their side.
-            self._set_transaction_error(
-                self._get_adyen_notification_message(notification_item)
-            )
-
-    def _handle_adyen_notification_item_refund(self, notification_item):
-        self.write(
-            {
-                "state_message": self._get_adyen_notification_message(
-                    notification_item
-                ),
-            }
-        )
-
-    def _handle_adyen_notification_item_cancel(self, notification_item):
-        self.write(
-            {
-                "state_message": self._get_adyen_notification_message(
-                    notification_item
-                )
-            }
-        )
-        self._set_transaction_cancel()
-
-    def _handle_adyen_notification_item_capture(self, notification_item):
-        success = notification_item.get("success")
-        success = True if success == "true" else False
-        if success and self.state != "done":
-            # Set to done if not already. Don't raise, just pass
-            # It will return a 200 code to Adyen, so the webhook will
-            # be marked as done on their side.
-            self._set_transaction_done()
-        elif not success and self.state == "draft":
-            # Set to error if draft. Don't raise, just pass
-            # It will return a 200 code to Adyen, so the webhook will
-            # be marked as done on their side.
-            self._set_transaction_error(
-                self._get_adyen_notification_message(notification_item)
-            )
-
-    def _handle_adyen_notification_item_capture_failed(
-        self, notification_item
-    ):
-        self._set_transaction_error(
-            self._get_adyen_notification_message(notification_item)
-        )
 
     def _get_adyen_merchant_account(self):
         """
@@ -139,6 +67,37 @@ class PaymentTransaction(models.Model):
             "additionalData": {"executeThreeD": True},
         }
         return request
+
+    def _trigger_transaction_provider(self, data):
+        # In the best world, this function should be more abstract if call super
+        # if not the expected provider.
+        # if self.acquirer_id.provider == ADYEN_PROVIDER:
+        self.ensure_one()
+        if self.acquirer_id.provider == ADYEN_PROVIDER:
+            return self._trigger_transaction_adyen(data)
+        return super()._trigger_transaction_provider(data)
+
+    def _prepare_transaction_data(self):
+        res = super()._prepare_transaction_data()
+        if self.acquirer_id.provider == ADYEN_PROVIDER:
+            res.update(self._prepare_adyen_session())
+        return res
+
+    def _trigger_transaction_adyen(self, data):
+        adyen = self._get_service()
+        try:
+            response = adyen.checkout.payment_methods(data)
+        except AdyenAPIValidationError as adyen_exception:
+            self._update_with_error(adyen_exception)
+            return {}
+        else:
+            self._update_with_response(response)
+            return response
+
+    def _get_service(self):
+        if self.acquirer_id.provider == ADYEN_PROVIDER:
+            return self._get_adyen_service()
+        return super()._get_service()
 
     def _get_adyen_service(self):
         """
@@ -191,6 +150,19 @@ class PaymentTransaction(models.Model):
             )
             res.update({"adyen_payment_method": payment_method})
         return res
+
+    def _update_with_response(self, response):
+        if self.acquirer_id.provider == ADYEN_PROVIDER:
+            return self._update_with_adyen_response(response)
+        return super()._update_with_response(response)
+
+    def _parse_transaction_response(self, response):
+        if self.acquirer_id.provider == ADYEN_PROVIDER:
+            return self._parse_transaction_response_adyen()
+        return super()._parse_transaction_response(response)
+
+    def _parse_transaction_response_adyen(self, response):
+        return response
 
     def _update_with_adyen_response(self, response):
         """
