@@ -51,7 +51,7 @@ class InvaderPayable(models.AbstractModel):
         return transaction.acquirer_reference
 
     def _get_klarna_capture_merchant_account(self, transaction):
-        return transaction.acquirer_id._get_adyen_merchant_account()
+        return transaction._get_adyen_merchant_account()
 
     def _build_klarna_capture_params(self, transaction):
         currency = self._get_klarna_capture_currency(transaction)
@@ -95,6 +95,16 @@ class InvaderPayable(models.AbstractModel):
         elif "klarna" not in (transaction.adyen_payment_method or ""):
             _logger.error(
                 "Transaction {tr_name} doesn't have an klarna payment method.".format(
+                    tr_name=transaction.display_name
+                )
+            )
+            return False
+        elif (
+            transaction.acquirer_id.provider
+            not in transaction.acquirer_id._get_adyen_providers()
+        ):
+            _logger.error(
+                "Transaction {tr_name} doesn't come from Adyen.".format(
                     tr_name=transaction.display_name
                 )
             )
