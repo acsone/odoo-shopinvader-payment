@@ -4,7 +4,6 @@
 # Need to skip this file because conflict with black
 import logging
 
-from odoo import _
 
 from odoo.addons.base_rest import restapi
 from odoo.addons.base_rest.components.service import (
@@ -12,12 +11,10 @@ from odoo.addons.base_rest.components.service import (
     to_int,
 )
 from odoo.addons.component.core import AbstractComponent
-from odoo.addons.invader_payment.models.payment_acquirer import (
-    PAYMENT_BASE_URL_KEY,
+from odoo.addons.invader_payment_adyen_abstract.services.payment_adyen import (
+    ADYEN_TRANSACTION_STATUSES,
 )
 
-from ..models.payment_acquirer import ADYEN_PROVIDER
-from .exceptions import AdyenInvalidData
 
 _logger = logging.getLogger(__name__)
 
@@ -34,6 +31,63 @@ class PaymentServiceAdyenWebDropin(AbstractComponent):
     _usage = "payment_adyen_dropin"
     _description = "REST Services for Adyen web-dropin payments"
 
+    def _validator_paymentMethods(self):
+        res = self.payment_service._invader_get_target_validator()
+        res.update(
+            {
+                "payment_mode_id": {
+                    "coerce": to_int,
+                    "type": "integer",
+                    "required": True,
+                }
+            }
+        )
+        return res
+
+    def _validator_return_paymentMethods(self):
+        return Validator(
+            {
+                "paymentMethods": {
+                    "type": "list",
+                    "schema": {
+                        "type": "dict",
+                        "schema": {
+                            "name": {"type": "string"},
+                            "type": {"type": "string"},
+                            "brands": {
+                                "type": "list",
+                                "required": False,
+                                "schema": {"type": "string"},
+                            },
+                        },
+                    },
+                },
+                "transaction_id": {"type": "integer"},
+            },
+            allow_unknown=True,
+        )
+
+    def paymentMethods(self, target, **params):
+        """
+        This is the service to provide Payment Methods depending on transaction
+        details and on partner country.
+        :return:
+        """
+        payment_mode_id = params.get("payment_mode_id")
+        transaction_obj = self.env["payment.transaction"]
+        payable = self.payment_service._invader_find_payable_from_target(
+            target, **params
+        )
+        # Adyen part
+        acquirer = self.env["payment.acquirer"].browse(payment_mode_id)
+        transaction = transaction_obj.create(
+            payable._invader_prepare_payment_transaction_data(acquirer)
+        )
+        response = transaction.trigger_transaction()
+        return self._generate_adyen_response(
+            response, payable, target, transaction, **params
+        )
+
     def _validator_payments(self):
         """
         Validator of payments service
@@ -43,50 +97,148 @@ class PaymentServiceAdyenWebDropin(AbstractComponent):
             transaction 'token', we must pass the transaction_id to the flow
         :return: dict
         """
-        schema = self.payment_service._invader_get_target_validator()
-        schema.update(
+        res = self.payment_service._invader_get_target_validator()
+        res.update(
             {
-                "acquirer_id": {
+                "payment_mode_id": {
                     "coerce": to_int,
                     "type": "integer",
                     "required": True,
                 },
-                "return_url": {"type": "string", "required": False},
+                "transaction_id": {
+                    "coerce": to_int,
+                    "type": "integer",
+                    "required": True,
+                },
+                "payment_method": {"type": "dict", "required": True},
+                "return_url": {"type": "string", "required": True},
             }
         )
-        return schema
+        return res
 
     def _validator_return_payments(self):
-        return Validator({}, allow_unknown=True)
+        return Validator(
+            {
+                "redirect": {
+                    "type": "dict",
+                    "schema": {
+                        "data": {"type": "dict"},
+                        "url": {"type": "string"},
+                        "method": {"type": "string"},
+                    },
+                },
+                "resultCode": {"type": "string"},
+                "pspReference": {"type": "string"},
+                "details": {"type": "list"},
+                "action": {"type": "dict"},
+            },
+            allow_unknown=True,
+        )
 
-    def payments(self, target, acquirer_id, return_url=False, **params):
-        """
-        Trigger the Adyen session to execute the payment
-        :return: json
-        """
+    def payments(
+        self,
+        target,
+        transaction_id,
+        payment_mode_id,
+        payment_method,
+        return_url,
+        **params
+    ):
+        transaction_obj = self.env["payment.transaction"]
         payable = self.payment_service._invader_find_payable_from_target(
             target, **params
         )
-        if not payable:
-            raise AdyenInvalidData(_("No payable found"))
-        # Adyen part
-        acquirer = (
-            self.env["payment.acquirer"]
-            .with_context(**{PAYMENT_BASE_URL_KEY: return_url})
-            .search(
-                [("id", "=", acquirer_id), ("provider", "=", ADYEN_PROVIDER)],
-                limit=1,
-            )
+
+        acquirer = self.env["payment.acquirer"].browse(payment_mode_id)
+        self.payment_service._check_provider(acquirer, "adyen")
+
+        transaction = transaction_obj.browse(transaction_id)
+        transaction.return_url = return_url
+        request = self._prepare_adyen_payments_request(
+            transaction, payment_method
         )
-        transaction = (
-            self.env["payment.transaction"]
-            .with_context(**{PAYMENT_BASE_URL_KEY: return_url})
-            .create(
-                payable._invader_prepare_payment_transaction_data(acquirer)
+        adyen = self._get_service(transaction)
+        response = adyen.checkout.payments(request)
+        self._update_transaction_with_response(transaction, response)
+        result_code = response.message.get("resultCode")
+        if result_code == "Authorised":
+            transaction._set_transaction_done()
+        else:
+            transaction.write(
+                {"state": ADYEN_TRANSACTION_STATUSES[result_code]}
             )
+
+        return self._generate_adyen_response(
+            response, payable, target, transaction, **params
         )
-        response = transaction.trigger_transaction()
-        return response
+
+    def _prepare_adyen_payments_request(self, transaction, payment_method):
+        """
+        https://docs.adyen.com/checkout/drop-in-web#step-3-make-a-payment
+        Prepare payments request
+        :param transaction:
+        :param payment_method:
+        :return:
+        """
+        return transaction._prepare_adyen_payments_request(payment_method)
+
+    def _validator_paymentResult(self):
+        schema = {
+            "transaction_id": {
+                "coerce": to_int,
+                "type": "integer",
+                "required": True,
+            },
+            "success_redirect": {"type": "string"},
+            "cancel_redirect": {"type": "string"},
+        }
+        return Validator(schema, allow_unknown=True)
+
+    def _validator_return_paymentResult(self):
+        schema = {"redirect_to": {"type": "string"}}
+        return Validator(schema, allow_unknown=True)
+
+    @restapi.method(
+        [(["/paymentResult"], ["GET", "POST"])],
+        input_param=restapi.CerberusValidator("_validator_paymentResult"),
+        output_param=restapi.CerberusValidator(
+            "_validator_return_paymentResult"
+        ),
+    )
+    def paymentResult(self, **params):
+        transaction = self.env["payment.transaction"].browse(
+            params.get("transaction_id")
+        )
+        # Response will be an AdyenResult object
+        adyen = self._get_service(transaction)
+        request = self._prepare_payment_details(transaction, **params)
+        response = adyen.checkout.payments_details(request)
+        self._update_transaction_with_response(transaction, response)
+        result_code = response.message.get("resultCode")
+        return_url = params.get("success_redirect")
+        notify = False
+        if result_code == "Authorised":
+            if transaction.state == "draft":
+                transaction._set_transaction_done()
+            else:
+                notify = True
+        elif result_code in ("Cancelled", "Refused"):
+            return_url = params.get("cancel_redirect")
+            transaction.write(
+                {"state": ADYEN_TRANSACTION_STATUSES[result_code]}
+            )
+        else:
+            transaction.write(
+                {"state": ADYEN_TRANSACTION_STATUSES[result_code]}
+            )
+
+        if notify:
+            # Payment state has been changed through another process
+            # (e.g. webhook). So, do the stuff for shopinvader_session
+            transaction._notify_state_changed_event()
+        res = {}
+        res["redirect_to"] = return_url
+        return res
 
     def _validator_webhook(self):
         schema = {
@@ -114,7 +266,7 @@ class PaymentServiceAdyenWebDropin(AbstractComponent):
 
     @skip_secure_response
     @restapi.method(
-        [(["/webhook"], ["GET", "POST"])],
+        [(["/webhook"], ["POST"])],
         input_param=restapi.CerberusValidator("_validator_webhook"),
         output_param=restapi.CerberusValidator("_validator_return_webhook"),
     )
@@ -192,57 +344,3 @@ class PaymentServiceAdyenWebDropin(AbstractComponent):
             )
         except Exception:
             return ""
-
-    def _validator_transaction_details(self):
-        schema = {
-            "transaction_id": {
-                "required": True,
-                "type": "string",
-            },
-        }
-        return Validator(schema, allow_unknown=False)
-
-    def _validator_return_transaction_details(self):
-        """
-        Returns nothing
-        :return:
-        """
-        schema = {
-            "reference": {"type": "string", "required": True},
-            "amount": {"type": "float", "required": True},
-            "currency": {"type": "string", "required": True},
-            "acquirer_reference": {"type": "string", "required": True},
-            "state_technical": {"type": "string", "required": True},
-            "adyen_payment_method": {"type": "string", "required": True},
-            "state": {"type": "string", "required": True},
-        }
-        return Validator(schema, allow_unknown=False)
-
-    @skip_secure_response
-    @restapi.method(
-        [(["/transaction_details"], ["GET"])],
-        input_param=restapi.CerberusValidator(
-            "_validator_transaction_details"
-        ),
-        output_param=restapi.CerberusValidator(
-            "_validator_return_transaction_details"
-        ),
-    )
-    def transaction_details(self, transaction_id):
-        # The transaction_id is the acquirer_reference
-        domain = [
-            ("acquirer_reference", "=", transaction_id),
-            ("acquirer_id.provider", "=", ADYEN_PROVIDER),
-        ]
-        transaction = self.env["payment.transaction"].search(domain, limit=1)
-        return {
-            "reference": transaction.reference,
-            "amount": transaction.amount,
-            "currency": transaction.currency_id.symbol,
-            "acquirer_reference": transaction.acquirer_reference,
-            "state_technical": transaction.state,
-            "adyen_payment_method": transaction.adyen_payment_method or "",
-            "state": transaction._fields.get("state").convert_to_export(
-                transaction["state"], transaction
-            ),
-        }
