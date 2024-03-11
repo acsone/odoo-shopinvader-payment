@@ -133,7 +133,7 @@ class PaymentServiceAdyen(AbstractComponent):
         )
         response = transaction.trigger_transaction()
         return self._generate_adyen_response(
-            response.message, payable, target, transaction, **params
+            response, payable, target, transaction, **params
         )
 
     def _validator_payments(self):
