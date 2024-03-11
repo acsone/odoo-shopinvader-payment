@@ -51,7 +51,7 @@ class InvaderPayable(models.AbstractModel):
         return transaction.acquirer_reference
 
     def _get_klarna_capture_merchant_account(self, transaction):
-        return transaction.acquirer_id._get_adyen_merchant_account()
+        return transaction._get_adyen_merchant_account()
 
     def _build_klarna_capture_params(self, transaction):
         currency = self._get_klarna_capture_currency(transaction)

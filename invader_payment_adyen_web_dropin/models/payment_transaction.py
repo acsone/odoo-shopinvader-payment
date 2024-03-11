@@ -166,7 +166,7 @@ class PaymentTransaction(models.Model):
         return super()._parse_transaction_response(response)
 
     def _parse_transaction_response_adyen_dropin(self, response):
-        return response.message
+        return response
 
     def _update_with_response_adyen_dropin(self, response):
         """
@@ -343,7 +343,6 @@ class PaymentTransaction(models.Model):
             self.write(data)
         # https://docs.adyen.com/development-resources/webhooks/webhook-types/#event-codes
         if event_code == "AUTHORISATION" and success:
-            self._set_transaction_done()
             self._handle_adyen_notification_item_authorized(notification_item)
         elif event_code == "AUTHORISATION" and not success:
             self._handle_adyen_notification_item_capture_failed(
