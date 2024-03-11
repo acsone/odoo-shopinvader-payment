@@ -87,6 +87,7 @@ class PaymentTransaction(models.Model):
             # Set to done if not already. Don't raise, just pass
             # It will return a 200 code to Adyen, so the webhook will
             # be marked as done on their side.
+            _logger.info("***** PAYMENT WILL BE MARKED AS DONE *****")
             self._set_transaction_done()
         elif not success and self.state == "draft":
             # Set to error if draft. Don't raise, just pass
