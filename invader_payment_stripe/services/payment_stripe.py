@@ -158,9 +158,11 @@ class PaymentServiceStripe(AbstractComponent):
                 transaction = self._get_stripe_transaction_from_intent(
                     stripe_payment_intent_id
                 )
-                intent = self._confirm_stripe_intent(
-                    transaction, stripe_payment_intent_id
-                )
+                intent = stripe.PaymentIntent.retrieve(stripe_payment_intent_id, api_key=self._get_stripe_private_key(transaction),)
+                if intent.status != "succeeded":
+                    intent = self._confirm_stripe_intent(
+                        transaction, stripe_payment_intent_id
+                    )
             if intent.status == "succeeded":
                 # Handle post-payment fulfillment
                 transaction._set_transaction_done()

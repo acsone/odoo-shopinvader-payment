@@ -9,7 +9,7 @@
     "license": "AGPL-3",
     "author": "ACSONE SA/NV,Odoo Community Association (OCA)",
     "website": "https://acsone.eu/",
-    "depends": ["payment_stripe", "invader_payment_stripe_charge"],
+    "depends": ["payment_stripe"],
     "data": ["views/payment_acquirer.xml"],
     "demo": [],
 }
