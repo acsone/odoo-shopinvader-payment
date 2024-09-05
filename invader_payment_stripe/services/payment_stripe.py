@@ -111,6 +111,9 @@ class PaymentServiceStripe(AbstractComponent):
             lambda a: a.provider == "stripe"
         ).stripe_secret_key
 
+    def _check_provider(self, acquirer):
+        self.payment_service._check_provider(acquirer, "stripe")
+
     def confirm_payment(self, target, **params):
         """
         This is the rest service exposed to locomotive and called on
@@ -141,7 +144,7 @@ class PaymentServiceStripe(AbstractComponent):
         # Stripe part
         transaction = None
         acquirer = self.env["payment.acquirer"].browse(payment_mode_id)
-        self.payment_service._check_provider(acquirer, "stripe")
+        self._check_provider(acquirer)
 
         try:
             if stripe_payment_method_id:

@@ -18,6 +18,44 @@ class PaymentServiceStripe(AbstractComponent):
         res.append("stripe_bancontact")
         return res
 
+    def _get_stripe_transaction_from_intent(self, intent):
+        """
+        Retrieve the transaction from intent string
+        :param intent: string
+        :return: payment.transaction
+        """
+        res = super()._get_stripe_transaction_from_intent(intent)
+        if not res:
+            transaction = self.env["payment.transaction"].search(
+                [
+                    ("acquirer_reference", "=", intent),
+                    ("acquirer_id.provider", "=", "stripe_bancontact"),
+                ],
+                limit=1,
+            )
+        return transaction
+
+    def _get_stripe_private_key(self, transaction):
+        """
+        Return stripe private key depending on payment.transaction recordset
+        :param transaction: payment.transaction
+        :return: string
+        """
+        res = super()._get_stripe_private_key(transaction)
+        if res:
+            return res
+        acquirer = transaction.acquirer_id
+        return acquirer.filtered(
+            lambda a: a.provider == "stripe_bancontact"
+        ).stripe_secret_key
+
+
+    def _check_provider(self, acquirer):
+        if acquirer.provider == "stripe_bancontact":
+            self.payment_service._check_provider(acquirer, "stripe_bancontact")
+        else:
+            super()._check_provider(acquirer)
+
     def _get_front_end_base_url(self):
         return ""
 
