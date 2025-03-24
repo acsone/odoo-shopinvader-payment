@@ -35,20 +35,21 @@ class WebhookServiceStripe(AbstractComponent):
         :param payload: stripe event value
         :return: nothing (stripe wait for HTTP 200)
         """
-        source = (
-            payload.get("data", {})
-            .get("object", {})
-            .get("metadata", {})
-            .get("reference")
-        )
-        if not source:
+        ref = (payload.get("data", {})
+               .get("object", {})
+               .get("metadata", {})
+               .get("reference"))
+        intent = (payload.get("data", {})
+                  .get("object", {})
+                  .get("payment_intent"))
+        if not intent and not ref:
             _logger.info(
                 "Webhook of type %s without reference: ignored",
                 payload.get("type"),
             )
             return
         transaction = self.env["payment.transaction"].search(
-            [("acquirer_reference", "=", source)]
+            [("acquirer_reference", "in", [ref, intent])]
         )
         if not transaction:
             raise MissingError(
